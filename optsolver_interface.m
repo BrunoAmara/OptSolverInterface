@@ -126,13 +126,17 @@ thermal_ope_costs(3) = 30.0;
 thermal_ope_costs(4) = 8.0;
 
 % Demand [MW]
-nblocks = 1;
+nblocks = 3;
 electrical_demand = zeros(nblocks,1);
 electrical_demand(1) = 12.0;
+electrical_demand(2) = 25.0;
+electrical_demand(3) = 8.0;
 
 var_thermal_pointer = optvar.size;
 for i = 1:nthermal
- optvar = add_var(0,max_cap(i),thermal_ope_costs(i),VAR_TYPE_CONT,optvar);
+  for j = 1:nblocks
+    optvar = add_var(0,max_cap(i),thermal_ope_costs(i),VAR_TYPE_CONT,optvar);
+  end
 end
 
 ctr_demand_balance_pointer = optctr.size;
@@ -176,7 +180,7 @@ for i = 1:nblocks
   demand_ctr_index = ctr_demand_balance_pointer + i;
   for j = 1:nthermal
     coef = 1.0;
-    thermal_var_index = var_thermal_pointer + j;
+    thermal_var_index = var_thermal_pointer + (j - 1) * nblocks + i ;
     optctr = add_var_to_ctr(coef,thermal_var_index,demand_ctr_index,optctr);
   end
 end
@@ -207,19 +211,22 @@ fprintf("\n");
 
 fprintf("Optimal obj. function value: k$ %3.3f\n", opt_obj)
 fprintf("Optimal solution:\n")
-for i=1:nthermal
-  fprintf("Output of plant %d: %3.3f MWh\n", i, opt_sol(i))
+for j = 1:nblocks
+  for i = 1:nthermal
+    sol_index = var_thermal_pointer + (i - 1) * nblocks + j;
+    fprintf("Output of plant %d for block %d: %3.3f MWh\n", [i, j, opt_sol(sol_index)])
+  end
 end
 fprintf("\n");
 
-fprintf("--------------------------------------------------------------------------\n")
+fprintf("=======================================================================\n");
 fprintf("Sensibility analysis\n")
-fprintf("--------------------------------------------------------------------------\n")
+fprintf("=======================================================================\n");
 disp("");
 
 fprintf("Marginal costs: \n")
 for i=1:length(info.lambda)
-  fprintf("Restrição %d: %3.3f\n", [i, info.lambda(i)])
+  fprintf("Constraint %d: %3.3f\n", [i, info.lambda(i)])
 end
 disp("");
 
@@ -227,3 +234,14 @@ fprintf("Reduced costs (variable marginal costs): \n")
 for i=1:length(info.redcosts)
   fprintf("Variable %d: %3.3f\n", [i, info.redcosts(i)])
 end
+
+% Plotting thermal generation
+thermal_generation = zeros(nblocks,nthermal);
+
+for i = 1:nthermal
+  for j = 1:nblocks
+    sol_index = var_thermal_pointer + (i - 1) * nblocks + j;
+    thermal_generation(j,i) = opt_sol(sol_index);
+  end
+end
+bar(thermal_generation);
